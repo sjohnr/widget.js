@@ -1,95 +1,95 @@
+// create Widget namespace
+if (typeof Widget == "undefined") {
+	Widget = {};
+}
+
+(function() {
+
+/**
+ * The click event handler, to change the selected tab based on the navigation
+ * element clicked, found in <code>e.memo.element</code>.
+ * @param e
+ * @private
+ */
+function tabViewClick(e) {
+	var index = this.indexOf(e.memo.element);
+	this.setActiveTab(index);
+}
+
+/**
+ * Stop event bubbling when clicking on a tabview navigation element.
+ * @param e
+ * @private
+ */
+function stopBubbleClick(e) {
+	e.stop();
+}
+
+/**
+ * Retrieve the id in an <li> element assuming it contains a child
+ * <a> element like the following: <a href="#element-id">...</a>
+ * @param element
+ * @private
+ */
+function getElementId(element) {
+	return element.down("a").href.match(/#(.+)/)[1];
+}
+
+/**
+ * Construct a Widget.TabView object.
+ * @param element
+ * @constructor Widget.Activator
+ */
 Widget.TabView = function(element) {
 	element = $(element);
 	
-	// cache tabview (this) in DOM element
-	element.tabview = this;
-	
-	// get nav and container elements
-	var nav = element.down("ul.nav");
-	var container = element.down("div.content");
-	
-	// create nav activator object
-	this.super(nav, {
-		singleSelect: true
+	var ul = element.down("ul");
+	var div = element.down("div");
+	Widget.Activator.call(this, {
+		container: ul,
+		singleSelect: true,
+		elements: ul.childElements(),
 	});
 	
-	// add event handlers to instance
-	this.bind($w("onTabViewClick"));
+	// cache additional event handler
+	this.eventHandlers.stopBubbleClick = stopBubbleClick.bindAsEventListener(this);
 	
-	// hide tab content
-	container.childElements().invoke("hide");
-	
-	// select first element
-	this.setActiveTab(0);
-	
-	// register for click event
-	this.observe("click", this.onTabViewClick);
+	// observe "activator:click" event
+	this.observe(Widget.Activator.CLICK, tabViewClick.bindAsEventListener(this));
+	this.container.observe("click", this.eventHandlers.stopBubbleClick);
 	
 	// initialize
-	this.nav = nav;
-	this.container = container;
+	this.activeTab = null;
+	this.setActiveTab(0);
 };
 
-Widget.TabView.prototype = {
+/**
+ * Class methods for Widget.TabView.
+ * @prototype Widget.TabView
+ */
+Widget.TabView.prototype = Object.extend({
+	/**
+	 * Set the active tab to a given tab index.
+	 * @param index
+	 */
 	setActiveTab: function(index) {
-		var memo = {};
+		var element = this.elementAt(index);
+		var oldActiveTab = this.activeTab;
+		var newActiveTab = $(getElementId(element));
 		
-		// disable original tab
-		if (this.active) {
-			this.active.hide();
+		this.activeTab = newActiveTab;
+		this.select(element);
+		if (oldActiveTab != null) {
+			oldActiveTab.hide();
 		}
-		
-		// memorize previous value
-		memo.prevTab = this.active;
-		
-		// select new tab
-		this.setSelected(index);
-		this.active = $(this.getElementId(this.getElement(index)));
-		this.active.show();
-		
-		// memorize new value
-		memo.newTab = this.active;
-		
-		// fire custom event
-		this.fire("activeTabChange", memo);
+		newActiveTab.show();
 	},
-	
-	getActiveTab: function() {
-		return this.active;
+	/**
+	 * Overridden destroy method.
+	 */
+	destroy: function() {
+		Widget.Activator.prototype.destroy.call(this);
+		this.container.stopObserving("click", this.eventHandlers.stopBubbleClick);
 	},
-	
-	getElementId: function(element) {
-		return element.down("a").href.match(/#(.+)/)[1];
-	},
-	
-	addTab: function(name, label) {
-		var li = new Element("li"), div = new Element("div", {id: name});
-		
-		li.appendChild(new Element("a", {href: "#"+name}).update(label));
-		this.nav.appendChild(li);
-		this.container.appendChild(div);
-		
-		// add to radio group
-		this.addElement(li);
-	},
-	hasTab: function(name) {
-		return this.container.childElements().pluck("id").include(name);
-	},
-	getTabIndex: function(name) {
-		return this.container.childElements().pluck("id").indexOf(name);
-	},
-	
-	/** handlers **/
-	onClick: function(e) {
-		this.superclass.onClick(e);
-		e.stop();
-	},
-	onTabViewClick: function(e) {
-		var element = e.memo;
-		var index = this.elements.indexOf(element);
-		
-		this.setActiveTab(index);
-	}
-};
-
-Object.inherit(Widget.TabView, Widget.Group);
+}, Widget.Activator.prototype);
+})();
